@@ -4,7 +4,7 @@ import React, { useState, useTransition } from 'react';
 import { User, Lock, Plus, Eye, EyeOff, Edit2, Trash2, ChevronDown, ChevronUp, Camera, Check, Loader2 } from 'lucide-react';
 import { Button } from '@/components/shared/Button';
 import { Card } from '@/components/shared/Card';
-import { updateProfileAction, updatePasswordAction, createFaqAction, deleteFaqAction } from '@/app/actions/settings';
+import { updateProfileAction, updatePasswordAction, createFaqAction, deleteFaqAction, updateFaqAction } from '@/app/actions/settings';
 
 export interface FaqItem {
   id: string;
@@ -48,7 +48,44 @@ export function SettingsClient({
   const [newFaqAnswer, setNewFaqAnswer] = useState('');
   const [isFaqPending, startFaqTransition] = useTransition();
 
+  // Edit FAQ State
+  const [showEditFaqModal, setShowEditFaqModal] = useState(false);
+  const [editingFaqId, setEditingFaqId] = useState<string | null>(null);
+  const [editFaqQuestion, setEditFaqQuestion] = useState('');
+  const [editFaqAnswer, setEditFaqAnswer] = useState('');
+
   // Handlers
+  const handleEditFaqClick = (faq: FaqItem, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingFaqId(faq.id);
+    setEditFaqQuestion(faq.question);
+    setEditFaqAnswer(faq.answer);
+    setShowEditFaqModal(true);
+  };
+
+  const handleUpdateFaq = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editFaqQuestion || !editFaqAnswer || !editingFaqId) return;
+
+    startFaqTransition(async () => {
+      const formData = new FormData();
+      formData.append('id', editingFaqId);
+      formData.append('question', editFaqQuestion);
+      formData.append('answer', editFaqAnswer);
+
+      const res = await updateFaqAction(formData);
+      if (!res.error && res.data) {
+        setFaqs(faqs.map(f => f.id === editingFaqId ? res.data as FaqItem : f));
+        setShowEditFaqModal(false);
+        setEditingFaqId(null);
+        setEditFaqQuestion('');
+        setEditFaqAnswer('');
+      } else {
+        alert(res.error);
+      }
+    });
+  };
+
   const handleSaveProfile = (e: React.FormEvent) => {
     e.preventDefault();
     startProfileTransition(async () => {
@@ -336,10 +373,7 @@ export function SettingsClient({
                       <div className="flex items-center gap-3 shrink-0">
                         <button
                           type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            alert(`Edit functionality coming soon`);
-                          }}
+                          onClick={(e) => handleEditFaqClick(faq, e)}
                           className="text-teal-600 hover:text-teal-800 transition-colors p-1"
                           title="Edit FAQ"
                         >
@@ -428,6 +462,64 @@ export function SettingsClient({
                   className="w-2/3 py-2.5 rounded-xl bg-[#0e2a47] hover:bg-[#0a1e33] text-white font-semibold shadow-sm"
                 >
                   {isFaqPending ? 'Saving...' : 'Submit'}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showEditFaqModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200/90 w-full max-w-lg p-6 sm:p-8 animate-in fade-in zoom-in-95">
+            <h2 className="text-xl font-bold text-slate-900 mb-1">Edit FAQ</h2>
+            <p className="text-xs text-slate-500 mb-6">Update the question or answer.</p>
+
+            <form onSubmit={handleUpdateFaq} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">FAQ</label>
+                <input
+                  type="text"
+                  value={editFaqQuestion}
+                  onChange={(e) => setEditFaqQuestion(e.target.value)}
+                  placeholder="Enter the question here.."
+                  required
+                  className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0e2a47]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">Answer</label>
+                <textarea
+                  rows={4}
+                  value={editFaqAnswer}
+                  onChange={(e) => setEditFaqAnswer(e.target.value)}
+                  placeholder="Provide a detailed answer.."
+                  required
+                  className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0e2a47]"
+                />
+              </div>
+
+              <div className="flex items-center gap-3 pt-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="md"
+                  onClick={() => setShowEditFaqModal(false)}
+                  disabled={isFaqPending}
+                  className="w-1/3 py-2.5 rounded-xl text-slate-700 border-slate-300 font-medium"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="md"
+                  disabled={isFaqPending}
+                  icon={isFaqPending ? <Loader2 className="w-4 h-4 animate-spin text-white" /> : undefined}
+                  className="w-2/3 py-2.5 rounded-xl bg-[#0e2a47] hover:bg-[#0a1e33] text-white font-semibold shadow-sm"
+                >
+                  {isFaqPending ? 'Saving...' : 'Update'}
                 </Button>
               </div>
             </form>

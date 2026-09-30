@@ -78,8 +78,16 @@ export async function createClientAction(formData: FormData) {
 }
 
 export async function deleteClientAction(clientId: string) {
+  const adminSupabase = await createAdminSupabaseClient();
   const supabase = await createServerSupabaseClient();
 
+  // Find the associated user profiles to get the auth user IDs
+  const { data: profiles } = await adminSupabase
+    .from('user_profiles')
+    .select('id')
+    .eq('client_id', clientId);
+
+  // Delete the client record
   const { error } = await supabase
     .from('clients')
     .delete()
@@ -87,6 +95,13 @@ export async function deleteClientAction(clientId: string) {
 
   if (error) {
     return { error: error.message };
+  }
+
+  // Delete associated auth users so their email is freed up
+  if (profiles && profiles.length > 0) {
+    for (const profile of profiles) {
+      await adminSupabase.auth.admin.deleteUser(profile.id);
+    }
   }
 
   revalidatePath('/admin/clients');

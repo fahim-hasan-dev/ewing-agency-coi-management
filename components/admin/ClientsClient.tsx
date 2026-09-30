@@ -88,7 +88,7 @@ export function ClientsClient({ initialClients }: ClientsClientProps) {
       </header>
 
       {toastMessage && (
-        <div className="fixed top-5 right-5 z-50 bg-slate-900 text-white px-4 py-3 rounded-lg shadow-xl text-xs font-semibold animate-bounce">
+        <div className="fixed top-5 right-5 z-[60] bg-slate-900 text-white px-4 py-3 rounded-lg shadow-xl text-xs font-semibold animate-bounce">
           {toastMessage}
         </div>
       )}

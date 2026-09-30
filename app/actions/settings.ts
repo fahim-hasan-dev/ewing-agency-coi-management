@@ -160,3 +160,32 @@ export async function deleteFaqAction(id: string) {
   revalidatePath('/admin/settings');
   return { success: true };
 }
+
+export async function updateFaqAction(formData: FormData) {
+  const supabase = await createServerSupabaseClient();
+  
+  const id = formData.get('id') as string;
+  const question = formData.get('question') as string;
+  const answer = formData.get('answer') as string;
+
+  if (!id || !question || !answer) return { error: 'Missing fields' };
+
+  if (id.startsWith('faq-')) {
+    // Fake success for fake IDs (as seen in createFaqAction)
+    return { success: true, data: { id, question, answer } };
+  }
+
+  const { data, error } = await supabase
+    .from('faqs')
+    .update({ question, answer })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  revalidatePath('/admin/settings');
+  return { success: true, data };
+}
