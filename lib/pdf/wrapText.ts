@@ -1,4 +1,5 @@
 import { PDFFont } from 'pdf-lib';
+import { sanitizeTextForPDF } from './sanitizeText';
 
 /**
  * Wraps text into lines that fit within maxWidth, respecting explicit newlines.
@@ -15,10 +16,11 @@ export function wrapText(
   font: PDFFont,
   size: number
 ): string[] {
+  const cleanText = sanitizeTextForPDF(text, font);
   const lines: string[] = [];
 
   // Preserve explicit newlines as paragraph breaks
-  text.split('\n').forEach((paragraph) => {
+  cleanText.split('\n').forEach((paragraph) => {
     if (paragraph.trim() === '') {
       lines.push(''); // blank separator line
       return;
@@ -30,7 +32,14 @@ export function wrapText(
     words.forEach((word) => {
       const testLine = currentLine ? `${currentLine} ${word}` : word;
 
-      if (font.widthOfTextAtSize(testLine, size) > maxWidth && currentLine) {
+      let testWidth = 0;
+      try {
+        testWidth = font.widthOfTextAtSize(testLine, size);
+      } catch {
+        testWidth = testLine.length * (size * 0.55);
+      }
+
+      if (testWidth > maxWidth && currentLine) {
         lines.push(currentLine);
         currentLine = word;
       } else {

@@ -1,6 +1,7 @@
 import { PDFDocument, StandardFonts, rgb, PDFFont, PDFPage } from 'pdf-lib';
 import { COI_FIELD_MAP } from './coiFieldMap';
 import { wrapText } from './wrapText';
+import { sanitizeTextForPDF } from './sanitizeText';
 
 // ---------------------------------------------------------------------------
 // Additional Insured sentence
@@ -63,13 +64,19 @@ function drawWrappedBlock(
   }
 
   effectiveLines.forEach((line, i) => {
-    page.drawText(line, {
-      x: field.x,
-      y: field.y - i * field.lineHeight,
-      size: field.size,
-      font,
-      color: rgb(0, 0, 0),
-    });
+    const safeLine = sanitizeTextForPDF(line, font);
+    if (!safeLine) return;
+    try {
+      page.drawText(safeLine, {
+        x: field.x,
+        y: field.y - i * field.lineHeight,
+        size: field.size,
+        font,
+        color: rgb(0, 0, 0),
+      });
+    } catch (err) {
+      console.warn(`Failed to draw line in ${fieldName}:`, err);
+    }
   });
 }
 
@@ -122,6 +129,12 @@ export async function generateCOI(options: GenerateCOIOptions): Promise<Uint8Arr
 
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
+  // Sanitize all inputs to strip non-encodable characters (BOM, zero-width spaces, etc.)
+  const cleanHolderName = sanitizeTextForPDF(certificateHolderName ?? '', font);
+  const cleanHolderAddress = sanitizeTextForPDF(certificateHolderAddress ?? '', font);
+  const cleanOps = sanitizeTextForPDF(descriptionOfOperations ?? '', font);
+  const cleanDate = sanitizeTextForPDF(certificateDate ?? '', font);
+
   // -------------------------------------------------------------------------
   // ERASURE ZONES: Clear out existing text in pre-filled templates
   // Draws white rectangles over the fields before we stamp new data.
@@ -138,8 +151,8 @@ export async function generateCOI(options: GenerateCOIOptions): Promise<Uint8Arr
   // -------------------------------------------------------------------------
   // FIELD 1: Certificate Date
   // -------------------------------------------------------------------------
-  const formattedDate = formatDateForCOI(certificateDate);
-  page.drawText(formattedDate, {
+  const formattedDate = formatDateForCOI(cleanDate);
+  page.drawText(sanitizeTextForPDF(formattedDate, font), {
     x: COI_FIELD_MAP.date.x,
     y: COI_FIELD_MAP.date.y,
     size: COI_FIELD_MAP.date.size,
@@ -150,7 +163,7 @@ export async function generateCOI(options: GenerateCOIOptions): Promise<Uint8Arr
   // -------------------------------------------------------------------------
   // FIELD 2: Certificate Holder Name + Address
   // -------------------------------------------------------------------------
-  const holderText = `${certificateHolderName}\n${certificateHolderAddress}`;
+  const holderText = `${cleanHolderName}\n${cleanHolderAddress}`;
   const holderLines = wrapText(
     holderText,
     COI_FIELD_MAP.certificateHolder.maxWidth,
@@ -168,10 +181,10 @@ export async function generateCOI(options: GenerateCOIOptions): Promise<Uint8Arr
   // -------------------------------------------------------------------------
   // FIELD 3: Description of Operations (full box, client editable)
   // -------------------------------------------------------------------------
-  let opsText = descriptionOfOperations ?? '';
+  let opsText = cleanOps;
 
   if (additionalInsured) {
-    const aiSentence = buildAdditionalInsuredSentence(certificateHolderName);
+    const aiSentence = buildAdditionalInsuredSentence(cleanHolderName);
     // Append the AI sentence on a new line after client content
     opsText = opsText
       ? `${opsText.trimEnd()}\n${aiSentence}`
